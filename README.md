@@ -1,7 +1,5 @@
 # Publicat
 
-> *"Open Periodicals for a Connected World"*
-
 **Publicat** is a fast, scalable, and beautiful web app that transforms any structured `.csv` bibliography into an interactive journal explorer. Featuring timeline views, search capabilities, and D3.js visualizations, it's the perfect way to share archival metadata with the world—instantly.
 
 This project builds on the structure of [vsesvit.vercel.app](https://vsesvit.vercel.app) and generalizes it for *any* CSV-based journal archive.
