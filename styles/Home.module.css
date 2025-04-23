@@ -1,0 +1,460 @@
+.container {
+  margin: 0;
+  padding: 0;
+}
+
+.main {
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #303841;
+  min-height: 100vh;
+  gap: 3rem;
+}
+
+.visualization-block {
+  width: 70%;
+  background-color: #222222;
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 0;
+}
+
+.visualization-block h2 {
+  color: white;
+  margin-top: 0;
+}
+
+.visualization-block p {
+  font-family: verdana;
+  font-size: 1rem;
+  line-height: 1.5;
+  margin: 0 0 1.5rem 0;
+}
+
+.chart-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.main a {
+  color: white;
+
+}
+
+.main tbody {
+  font-family: 'SF Pro Text', 'SF Pro Icons', 'Helvetica Neue', 'Helvetica',
+    'Arial', sans-serif;
+  padding: 0;
+  max-width: 1090px;
+  margin: 0;
+  background-color: #303841;
+}
+
+.main p {
+  color: white;
+}
+
+.main h1 {
+  color: #b98c54;
+}
+
+.main h2 {
+  color: white;
+  font-family: 'SF Pro Text', 'SF Pro Icons', 'Helvetica Neue', 'Helvetica',
+    'Arial', sans-serif;
+}
+
+.main li {
+  font-family: 'SF Pro Text', 'SF Pro Icons', 'Helvetica Neue', 'Helvetica',
+    'Arial', sans-serif;
+  color: white;
+}
+
+.searchBar {
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+  background-color: #303841;
+  border: none;
+  border-bottom: 1px solid #ccc;
+  font-size: 16px;
+  outline: none;
+}
+
+/* Top Navigation Bar Styles */
+.navbar {
+  background-color: #1a1f24;
+  padding: 5px 0;
+  width: 100%;
+  font-family: Consolas, sans-serif;
+}
+
+.navList {
+  list-style-type: none;
+  display: flex;
+  justify-content: center;
+  align-items: center; /* Vertically center items */
+  padding: 10px; /* Corrected missing units (px) */
+  margin: 0;
+}
+
+.navItem {
+  margin: 0 15px;
+  align-items: center; /* Vertically center items */
+}
+
+.navItem a {
+  text-decoration: none;
+  color: #fff;
+  font-weight: bold;
+  transition: color 0.3s ease;
+  font-size: 1.25rem;
+  white-space: nowrap;
+}
+
+.navItem a:hover {
+  color: #b98c54; /* Change color on hover */
+}
+
+.navItem.logo {
+  display: flex;
+  align-items: center;
+}
+
+
+.main_journal {
+  min-height: 100vh;
+  padding: 4rem 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: left;
+  align-items: left;
+}
+
+.main_journal a {
+  color: white;
+
+}
+
+.footer {
+  display: flex;
+  flex: 1;
+  padding: 2rem 0;
+  border-top: 1px solid #eaeaea;
+  justify-content: center;
+  align-items: center;
+}
+
+.footer a {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-grow: 1;
+}
+
+.title a {
+  color: #0070f3;
+  text-decoration: none;
+}
+
+.title a:hover,
+.title a:focus,
+.title a:active {
+  text-decoration: underline;
+}
+
+.title {
+  margin: 0;
+  line-height: 1.15;
+  font-size: 4rem;
+}
+
+.title,
+.description {
+  text-align: center;
+}
+
+.description {
+  margin: 4rem 0;
+  line-height: 1.5;
+  font-size: 1.5rem;
+}
+
+.code {
+  background: #fafafa;
+  border-radius: 5px;
+  padding: 0.75rem;
+  font-size: 1.1rem;
+  font-family: Menlo, Monaco, Lucida Console, Liberation Mono, DejaVu Sans Mono,
+    Bitstream Vera Sans Mono, Courier New, monospace;
+}
+
+.grid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  max-width: 800px;
+  padding: 50px;
+  font-family: 'SF Pro Text', 'SF Pro Icons', 'Helvetica Neue', 'Helvetica',
+    'Arial', sans-serif;
+}
+
+.cardContainer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  width: 100%; /* Occupy full width of grid container */
+  margin: -1rem; /* Compensate for margin in individual cards */
+}
+
+.card {
+  margin: 1rem;
+  padding: 1.5rem;
+  text-align: center;
+  color: inherit;
+  text-decoration: none;
+  border: 1px solid #eaeaea;
+  border-radius: 10px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  max-width: calc(33.33% - 2rem); /* Adjust width for three cards in a row */
+  flex-basis: calc(33.33% - 2rem); /* Adjust basis for three cards in a row */
+  box-sizing: border-box; /* Include padding and border in the width calculation */
+}
+
+.card:hover,
+.card:focus,
+.card:active {
+  color: #0070f3;
+  border-color: #0070f3;
+}
+
+.card h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.5rem;
+}
+
+.card p {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.5;
+}
+
+.logo {
+  height: 1em;
+}
+
+.iframe-container {
+  width: 100%; /* Adjust this as needed */
+}
+
+/* Optional: To make the iframe responsive */
+.iframe-container iframe {
+  width: 100%;
+  border: none; /* Remove default iframe border */
+}
+
+@media (max-width: 600px) {
+  .grid {
+    width: 100%;
+    flex-direction: column;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .card,
+  .footer {
+    border-color: #222;
+  }
+  .code {
+    background: #111;
+  }
+  .logo img {
+    filter: invert(1);
+  }
+}
+
+.tooltip {
+  position: absolute;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 8px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.dropdownContainer {
+  display: flex;
+  flex-direction: column; /* Stack dropdowns vertically */
+  align-items: stretch; /* Stretch dropdowns to 100% width */
+  margin-top: 20px; /* Adjust as needed */
+  width: 100%;
+  height: 100vh;
+}
+
+.dropdown {
+  position: relative;
+}
+
+.dropdownButton {
+  font-family:verdana;
+  font-size: 1.5rem;
+  background-color: #1a1f24;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  cursor: pointer;
+  width: 100%; /* Make button 100% width */
+  height: 12.5vh;
+}
+
+.dropdownButton:hover {
+  background-color: #b98c54;; /* New background color on hover */
+  color: #ffffff; /* New text color on hover */
+}
+
+.dropdownContent {
+  display: none;
+  position: absolute;
+  background-color: #303841;
+  width: 100%; /* Make content 100% width */
+  z-index: 1;
+  margin-top: 5px; /* Adjust spacing */
+  display: flex;
+  justify-content: center; /* Horizontally center */
+  align-items: center; /* Vertically center */
+}
+
+.dropdownContent a {
+  color: white;
+  padding: 12px 16px;
+  text-decoration: none;
+  /*display: block;*/
+  display: flex;
+  justify-content: center; /* Horizontally center */
+  align-items: center; /* Vertically center */
+}
+
+.dropdown:hover .dropdownContent {
+  display: flex;
+}
+
+/* Adjust grid styles to accommodate dropdown content */
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 1000px; /* Adjust as needed */
+  padding: 20px;
+  font-family: 'SF Pro Text', 'SF Pro Icons', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
+}
+
+.cardContainer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  width: 100%;
+  margin: -1rem;
+}
+
+.card {
+  margin: 10px;
+  padding: 20px;
+  text-align: center;
+  color: inherit;
+  text-decoration: none;
+  border: 1px solid #eaeaea;
+  border-radius: 10px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  max-width: calc(33.33% - 20px);
+  flex-basis: calc(33.33% - 20px);
+  box-sizing: border-box;
+}
+
+.card:hover,
+.card:focus,
+.card:active {
+  color: #0070f3;
+  border-color: #0070f3;
+}
+
+.card h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.5rem;
+}
+
+.card p {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.5;
+}
+
+.logo {
+  height: 1em;
+}
+
+/* Optional: To make the iframe responsive */
+.iframe-container iframe {
+  width: 100%;
+  border: none;
+}
+
+/* Optional: Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  /* Add any dark mode adjustments here */
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.topLeftText {
+  position: absolute;
+  top: 100px; /* Adjust as needed */
+  left: 75px; /* Adjust as needed */
+  right: 75px;
+  font-family:verdana;
+  font-size: 1.5rem;
+  line-height: 2;
+}
+
+.centeredContent {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.searchContainer {
+  margin-bottom: 10px; /* Adjust margin as needed */
+}
+
+.resultsContainer {
+  width: 100%; /* Ensure the results container spans the entire width */
+}
+
+.chart-container{
+   flex-direction: column;
+}
+
+.desc-container {
+  width: 70%;
+  text-align: center; 
+  display: block;
+
+}
+
+.desc-container p {
+  margin-left: 20px !important; /* Add a margin for left indent */
+  margin-right: 20px !important; /* Add a margin for right indent */
+  font-family: verdana;
+  font-size: 1.5rem;
+  line-height: 2;
+}

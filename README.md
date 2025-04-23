@@ -1,36 +1,129 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Publicat
 
-## Getting Started
+> *"Open Periodicals for a Connected World"*
 
-First, run the development server:
+**Publicat** is a fast, scalable, and beautiful web app that transforms any structured `.csv` bibliography into an interactive journal explorer. Featuring timeline views, search capabilities, and D3.js visualizations, it's the perfect way to share archival metadata with the world—instantly.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+This project builds on the structure of [vsesvit.vercel.app](https://vsesvit.vercel.app) and generalizes it for *any* CSV-based journal archive.
+
+---
+
+## 🚀 Features
+
+- 📂 **Plug & Play CSV Input** — Just drop in your `.csv` file.
+- 🕰️ **Browse by Decade** — Explore issues across time.
+- 🔍 **Search Everything** — Find articles by author, title, translator.
+- 📊 **Visual Analytics** — Unique authors per decade, country/language distributions.
+- 🌙 **Dark Mode by Default** (with slick UI)
+- 🤖 **Future-Ready** — Built with React (Next.js) + D3 + PapaParse
+- 💬 **Built-in AI Assistant** — Ask questions about the data in natural language
+
+---
+
+## 📂 How to Use with Your Own CSV
+
+### 1. Format Your CSV
+
+Your `.csv` file should have the following columns (headers must be exact):
+
+```csv
+journal_id,journal_name,journal_year,journal_number,article_name,author,translator,country,country_latin,language,language_latin
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+You can leave fields blank if not applicable.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 2. Add Your File
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+Put your `.csv` inside the `/public/data/` folder.
 
-## Learn More
+Rename it something like `my_journal_data.csv`.
 
-To learn more about Next.js, take a look at the following resources:
+### 3. Update Code References
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Search across the codebase and update:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+```tsx
+const CSV_URL = '/data/data_2.csv';
+```
 
-## Deploy on Vercel
+To:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```tsx
+const CSV_URL = '/data/my_journal_data.csv';
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+This is found in:
+- `index.tsx`
+- `search.tsx`
+- `visualizations.tsx`
+- `ai_chat.tsx`
+
+### 4. (Optional) Update Branding
+
+Edit:
+```tsx
+<title>Vsesvit</title>
+```
+To:
+```tsx
+<title>Publicat</title>
+```
+
+Also update logos, meta descriptions, and `about.tsx` for your own flavor.
+
+---
+
+## 🚢 Deploy on Vercel
+
+#### Option 1: Via GitHub
+- Push your project to GitHub
+- Go to [vercel.com](https://vercel.com)
+- Connect your repo & deploy
+
+#### Option 2: Via CLI
+
+```bash
+npm install -g vercel
+vercel
+```
+
+Follow the interactive prompts. 
+
+---
+
+## 🔧 Tech Stack
+- [Next.js](https://nextjs.org/)
+- [React](https://reactjs.org/)
+- [D3.js](https://d3js.org/)
+- [PapaParse](https://www.papaparse.com/) (CSV parsing)
+- [Vercel](https://vercel.com/) (deployment)
+
+---
+
+## 💪 Contributing
+Have a cool CSV use case? Want to improve visualizations? PRs are welcome!
+
+1. Fork the repo
+2. Clone it locally
+3. Install dependencies:
+
+```bash
+npm install
+```
+
+4. Run dev server:
+```bash
+npm run dev
+```
+
+---
+
+## 📞 Contact
+
+Created by [@KGeorgii](https://github.com/KGeorgii). Feel free to open issues or reach out for collaboration ideas!
+
+---
+
+## ✈️ License
+
+MIT License.
