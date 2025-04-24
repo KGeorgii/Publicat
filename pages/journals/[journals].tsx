@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import styles from '/styles/Home.module.css';
 import Papa from 'papaparse';
+import logo from '../asset/logo.png';
 import Head from 'next/head';
 import Link from 'next/link';
-import logo from '/asset/logo.png';
 import Image from 'next/image';
 import "/styles/global.css";
 
