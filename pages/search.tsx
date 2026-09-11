@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import styles from '../styles/Home.module.css';
-import "../styles/global.css";
 import Head from 'next/head';
 import Link from 'next/link';
 import logo from '../asset/logo.png';

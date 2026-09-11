@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import styles from '../styles/Home.module.css';
 import Image from 'next/image';
-import "../styles/global.css";
 import logo from '../asset/logo.png';
 import Head from 'next/head';
 import Papa from 'papaparse';
