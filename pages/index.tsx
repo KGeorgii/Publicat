@@ -3,6 +3,7 @@ import Link from 'next/link';
 import styles from '../styles/Home.module.css';
 import Nav from '../components/Nav';
 import { useJournalData } from '../lib/useJournalData';
+import { encodeId } from '../lib/loadCsv';
 import type { Journal } from '../types/journal';
 
 const getDecade = (year: number) => `${Math.floor(year / 10) * 10}s`;
@@ -158,7 +159,7 @@ export default function Home() {
                               }}
                             >
                               <Link
-                                href={`/journals/${journal.journal_id}`}
+                                href={`/journals/${encodeId(journal.journal_id)}`}
                                 style={{ color: 'white', textDecoration: 'none', display: 'block' }}
                               >
                                 {`${journal.journal_name}, ${journal.journal_year}, ${journal.journal_number}`}

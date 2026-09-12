@@ -1,890 +1,330 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale,
+  BarElement, Title, PointElement, LineElement,
+} from 'chart.js';
+import { Bar, Pie, Line } from 'react-chartjs-2';
 import styles from '../styles/Home.module.css';
 import Nav from '../components/Nav';
 import { useJournalData } from '../lib/useJournalData';
-import type { Journal as JournalEntry } from '../types/journal';
-// Import chart.js for visualizations
-import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title, PointElement, LineElement } from 'chart.js';
-import { Bar, Pie, Line } from 'react-chartjs-2';
+import {
+  QUERY_SPECS, LIMITATIONS, runQuery,
+  type Chart as ChartSpec, type QueryResult, type QueryFailure,
+} from '../lib/queries';
 
-// Register Chart.js components
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, PointElement, LineElement);
 
+type Turn =
+  | { role: 'user'; text: string }
+  | { role: 'result'; result: QueryResult | QueryFailure };
 
-// Define the type for chat messages
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-  visualization?: {
-    type: 'pie' | 'bar' | 'line';
-    data: any;
-    options: any;
+const PALETTE = [
+  '#4e79a7', '#f28e2c', '#e15759', '#76b7b2', '#59a14f', '#edc949',
+  '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab', '#1f77b4', '#ff7f0e',
+];
+
+const SHOWN_BY_DEFAULT = 3;
+const DIVIDER = '1px solid rgba(255, 255, 255, 0.12)';
+
+function ChartView({ spec }: { spec: ChartSpec }) {
+  const data = {
+    labels: spec.labels,
+    datasets: [{
+      label: spec.label,
+      data: spec.values,
+      backgroundColor: spec.type === 'pie' ? PALETTE : 'rgba(75, 192, 192, 0.7)',
+      borderColor: spec.type === 'line' ? '#b98c54' : 'rgba(75, 192, 192, 1)',
+      borderWidth: 1,
+    }],
   };
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: 'white' }, display: spec.type === 'pie' } },
+    scales: spec.type === 'pie' ? undefined : {
+      y: { beginAtZero: true, ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+      x: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+    },
+  } as const;
+
+  return (
+    <div style={{ height: 240, marginTop: '0.9rem' }}>
+      {spec.type === 'bar' && <Bar data={data} options={options as never} />}
+      {spec.type === 'pie' && <Pie data={data} options={options as never} />}
+      {spec.type === 'line' && <Line data={data} options={options as never} />}
+    </div>
+  );
 }
 
 export default function AiChat() {
-  const { rows: journals, loading, error: loadError } = useJournalData();
-  const [query, setQuery] = useState('');
-  const [messages, setMessages] = useState<Message[]>([
-    { 
-      role: 'assistant', 
-      content: 'Welcome to AI Assistant! Ask me questions about the journal collection, such as "What was the most popular language of translation in the 1960s?" or "Show me all authors from Australia."'
-    }
-  ]);
-  const [thinking, setThinking] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const { rows, loading, error } = useJournalData();
+  const [input, setInput] = useState('');
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [modal, setModal] = useState<null | 'all' | 'limits'>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Automatically scroll to the bottom of the chat
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+  }, [turns]);
 
-  // Surface a dataset load failure in the transcript rather than answering
-  // every question from an empty array.
   useEffect(() => {
-    if (!loadError) return;
-    setMessages((prev) => [
-      ...prev,
-      { role: 'assistant', content: `I could not load the journal data: ${loadError}` },
-    ]);
-  }, [loadError]);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setModal(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!query.trim()) return;
-    
-    // Add user message to chat
-    setMessages(prev => [...prev, { role: 'user', content: query }]);
-    setThinking(true);
-    
-    // Process the query with the data
-    try {
-      const result = await processQuery(query, journals);
-      setMessages(prev => [...prev, result]);
-    } catch (error) {
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: 'Sorry, I encountered an error processing your question. Please try again.' 
-      }]);
-    } finally {
-      setThinking(false);
-      setQuery('');
-    }
+  const ask = (text: string) => {
+    if (!text.trim()) return;
+    // Synchronous: a scan over an array already in memory. Nothing is in
+    // flight, so there is nothing to wait for and nothing to simulate.
+    setTurns((prev) => [...prev, { role: 'user', text }, { role: 'result', result: runQuery(text, rows) }]);
+    setInput('');
   };
 
-  const processQuery = async (query: string, data: JournalEntry[]): Promise<Message> => {
-  const lowerQuery = query.toLowerCase();
-  
-  // Expanded query handling with more flexible matching
-  const matchQueries = [
-    {
-      patterns: ['popular language', 'most common language'],
-      handler: () => analyzePopularLanguages(data, lowerQuery)
-    },
-    {
-      patterns: ['author from australia', 'australian authors', 'authors in australia'],
-      handler: () => listAuthorsFromCountry(data, 'Australia')
-    },
-    {
-      patterns: ['journals in', 'publications in', 'articles published in'],
-      handler: () => {
-        const yearMatch = lowerQuery.match(/\b(1[89]\d0s?|20\d0s?|\d{4})\b/);
-        return yearMatch ? countJournalsByPeriod(data, yearMatch[0]) : 
-          { role: 'assistant' as const, content: "Please specify a specific decade or year." };
-      }
-    },
-    {
-      patterns: ['translator', 'translators', 'translation work'],
-      handler: () => analyzeTranslators(data, lowerQuery)
-    },
-    {
-      patterns: ['most prolific author', 'author with most publications', 'top author'],
-      handler: () => findMostProlificAuthor(data)
-    },
-    {
-      patterns: ['countries', 'countries represented', 'author nationalities'],
-      handler: () => analyzeCountries(data)
-    },
-    {
-      patterns: ['article about', 'articles containing', 'publications on'],
-      handler: () => searchArticles(data, lowerQuery)
-    },
-    {
-      patterns: ['most active decade', 'decade with most publications', 'busiest decade'],
-      handler: () => findMostActiveDecade(data)
-    }
-  ];
-
-  // Find the first matching query pattern
-  for (const queryPattern of matchQueries) {
-    if (queryPattern.patterns.some(pattern => lowerQuery.includes(pattern))) {
-      return await queryPattern.handler();
-    }
-  }
-
-  return { 
-    role: 'assistant' as const,
-    content: "I'm not sure how to answer that specific question about the data." 
-  };
-};
-
-  const analyzePopularLanguages = (data: JournalEntry[], query: string): Message => {
-    // Extended decade filtering with more comprehensive coverage
-    const decadeMapping: Record<string, [number, number]> = {
-      '1920s': [1920, 1930],
-      '1930s': [1930, 1940],
-      '1940s': [1940, 1950],
-      '1950s': [1950, 1960],
-      '1960s': [1960, 1970],
-      '1970s': [1970, 1980],
-      '1980s': [1980, 1990],
-      '1990s': [1990, 2000],
-      '2000s': [2000, 2010]
-    };
-
-    // Find matching decade
-    const matchedDecade = Object.keys(decadeMapping).find(decade => 
-      query.includes(decade) || query.includes(decade.slice(0, -1))
-    );
-
-    // Filter data by decade or use entire dataset
-    let filteredData = data;
-    if (matchedDecade) {
-      const [startYear, endYear] = decadeMapping[matchedDecade];
-      filteredData = data.filter(item => {
-        const year = item.journal_year;
-        return year >= startYear && year < endYear;
-      });
-    }
-
-    // Count language occurrences
-    const languageCounts: Record<string, number> = {};
-    filteredData.forEach(item => {
-      if (item.language_latin) {
-        languageCounts[item.language_latin] = (languageCounts[item.language_latin] || 0) + 1;
-      }
-    });
-
-    // Sort languages by popularity
-    const sortedLanguages = Object.entries(languageCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);  // Top 5 languages
-
-    // Generate response
-    if (sortedLanguages.length === 0) {
-      return {
-        role: 'assistant',
-        content: "No language data found for the specified period."
-      };
-    }
-
-    const periodText = matchedDecade ? ` in the ${matchedDecade}` : '';
-    const languageList = sortedLanguages
-      .map(([language, count]) => `${language} (${count} publications)`)
-      .join(', ');
-
-    // Create visualization data
-    const labels = sortedLanguages.map(([language]) => language);
-    const values = sortedLanguages.map(([_, count]) => count);
-    
-    // Create a color palette
-    const backgroundColors = [
-      'rgba(255, 99, 132, 0.7)',
-      'rgba(54, 162, 235, 0.7)',
-      'rgba(255, 206, 86, 0.7)',
-      'rgba(75, 192, 192, 0.7)',
-      'rgba(153, 102, 255, 0.7)'
-    ];
-
-    return {
-      role: 'assistant',
-      content: `Most popular languages${periodText}: ${languageList}`,
-      visualization: {
-        type: 'pie',
-        data: {
-          labels: labels,
-          datasets: [{
-            data: values,
-            backgroundColor: backgroundColors,
-            borderColor: backgroundColors.map(color => color.replace('0.7', '1')),
-            borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              position: 'right',
-              labels: {
-                color: 'white'
-              }
-            },
-            title: {
-              display: true,
-              text: `Most Popular Languages${periodText}`,
-              color: 'white',
-              font: {
-                size: 16
-              }
-            }
-          }
-        }
-      }
-    };
-  };
-
-  const listAuthorsFromCountry = (data: JournalEntry[], country: string): Message => {
-    const authors = new Set<string>();
-    data.forEach(item => {
-      if ((item.country === country || item.country_latin === country) && item.author) {
-        authors.add(item.author);
-      }
-    });
-    
-    const authorList = Array.from(authors);
-    
-    if (authorList.length === 0) {
-      return {
-        role: 'assistant',
-        content: `I couldn't find any authors from ${country} in the collection.`
-      };
-    }
-    
-    return {
-      role: 'assistant',
-      content: `Authors from ${country} in the collection:\n\n` +
-             authorList.join('\n')
-    };
-  };
-
-  const countJournalsByPeriod = (data: JournalEntry[], period: string): Message => {
-    // Check if it's a decade or a specific year
-    let filteredData;
-    let periodText;
-    
-    if (period.endsWith('s')) {
-      // It's a decade like "1960s"
-      const decadeStart = parseInt(period.substring(0, 4));
-      filteredData = data.filter(item => {
-        const year = item.journal_year;
-        return year >= decadeStart && year < decadeStart + 10;
-      });
-      periodText = period;
-      
-      // Additional data for visualization - count by year within decade
-      const yearCounts: Record<string, number> = {};
-      for (let year = decadeStart; year < decadeStart + 10; year++) {
-        yearCounts[year.toString()] = 0;
-      }
-      
-      filteredData.forEach(item => {
-        if (item.journal_year) {
-          yearCounts[item.journal_year] = (yearCounts[item.journal_year] || 0) + 1;
-        }
-      });
-      
-      // Create bar chart data
-      const labels = Object.keys(yearCounts).sort();
-      const values = labels.map(year => yearCounts[year]);
-      
-      return {
-        role: 'assistant',
-        content: `There were ${filteredData.length} articles published in ${periodText}.`,
-        visualization: {
-          type: 'bar',
-          data: {
-            labels: labels,
-            datasets: [{
-              label: 'Publications',
-              data: values,
-              backgroundColor: 'rgba(75, 192, 192, 0.7)',
-              borderColor: 'rgba(75, 192, 192, 1)',
-              borderWidth: 1
-            }]
-          },
-          options: {
-            responsive: true,
-            scales: {
-              y: {
-                beginAtZero: true,
-                ticks: {
-                  color: 'white'
-                },
-                grid: {
-                  color: 'rgba(255, 255, 255, 0.1)'
-                }
-              },
-              x: {
-                ticks: {
-                  color: 'white'
-                },
-                grid: {
-                  color: 'rgba(255, 255, 255, 0.1)'
-                }
-              }
-            },
-            plugins: {
-              legend: {
-                labels: {
-                  color: 'white'
-                }
-              },
-              title: {
-                display: true,
-                text: `Publications in the ${periodText}`,
-                color: 'white',
-                font: {
-                  size: 16
-                }
-              }
-            }
-          }
-        }
-      };
-    } else {
-      // It's a specific year
-      filteredData = data.filter(item => item.journal_year === Number(period));
-      periodText = `year ${period}`;
-      
-      // Get unique journal IDs
-      const uniqueJournals = new Set<string>();
-      filteredData.forEach(item => {
-        if (item.journal_id) {
-          uniqueJournals.add(item.journal_id);
-        }
-      });
-      
-      return {
-        role: 'assistant',
-        content: `There were ${uniqueJournals.size} unique journal issues published in ${periodText}.`
-      };
-    }
-  };
-
-  const analyzeTranslators = (data: JournalEntry[], query: string): Message => {
-    // Count occurrences of each translator
-    const translatorCounts: Record<string, number> = {};
-    data.forEach(item => {
-      if (item.translator && item.translator !== '-') {
-        translatorCounts[item.translator] = (translatorCounts[item.translator] || 0) + 1;
-      }
-    });
-    
-    // Sort translators by contribution count
-    const sortedTranslators = Object.entries(translatorCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10); // Top 10 for visualization
-    
-    if (sortedTranslators.length === 0) {
-      return {
-        role: 'assistant',
-        content: "I couldn't find any translator data in the collection."
-      };
-    }
-    
-    // For visualization
-    const labels = sortedTranslators.map(([name]) => name);
-    const values = sortedTranslators.map(([_, count]) => count);
-    
-    return {
-      role: 'assistant',
-      content: `The most active translators in the collection were:\n\n` +
-               sortedTranslators.map(([name, count]) => `${name} (${count} translations)`).join('\n'),
-      visualization: {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'Number of Translations',
-            data: values,
-            backgroundColor: 'rgba(54, 162, 235, 0.7)',
-            borderColor: 'rgba(54, 162, 235, 1)',
-            borderWidth: 1
-          }]
-        },
-        options: {
-          indexAxis: 'y', // Horizontal bar chart
-          responsive: true,
-          scales: {
-            x: {
-              beginAtZero: true,
-              ticks: {
-                color: 'white'
-              },
-              grid: {
-                color: 'rgba(255, 255, 255, 0.1)'
-              }
-            },
-            y: {
-              ticks: {
-                color: 'white'
-              },
-              grid: {
-                color: 'rgba(255, 255, 255, 0.1)'
-              }
-            }
-          },
-          plugins: {
-            legend: {
-              labels: {
-                color: 'white'
-              }
-            },
-            title: {
-              display: true,
-              text: 'Most Active Translators',
-              color: 'white',
-              font: {
-                size: 16
-              }
-            }
-          }
-        }
-      }
-    };
-  };
-
-  const findMostProlificAuthor = (data: JournalEntry[]): Message => {
-    // Count occurrences of each author
-    const authorCounts: Record<string, number> = {};
-    data.forEach(item => {
-      if (item.author) {
-        authorCounts[item.author] = (authorCounts[item.author] || 0) + 1;
-      }
-    });
-    
-    // Find top authors
-    const topAuthors = Object.entries(authorCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5); // Top 5 for visualization
-    
-    if (topAuthors.length === 0) {
-      return {
-        role: 'assistant',
-        content: "I couldn't determine the most prolific author from the data."
-      };
-    }
-    
-    const mostProlificAuthor = topAuthors[0][0];
-    const maxCount = topAuthors[0][1];
-    
-    // Get a list of this author's works
-    const authorWorks = data
-      .filter(item => item.author === mostProlificAuthor)
-      .map(item => `"${item.article_name || 'Untitled'}" (${item.journal_year || 'Unknown year'})`);
-    
-    // For visualization
-    const labels = topAuthors.map(([name]) => name);
-    const values = topAuthors.map(([_, count]) => count);
-    
-    return {
-      role: 'assistant',
-      content: `The most prolific author in the collection is ${mostProlificAuthor} with ${maxCount} publications:\n\n` +
-               authorWorks.join('\n'),
-      visualization: {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'Number of Publications',
-            data: values,
-            backgroundColor: 'rgba(255, 99, 132, 0.7)',
-            borderColor: 'rgba(255, 99, 132, 1)',
-            borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true,
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: {
-                color: 'white'
-              },
-              grid: {
-                color: 'rgba(255, 255, 255, 0.1)'
-              }
-            },
-            x: {
-              ticks: {
-                color: 'white'
-              },
-              grid: {
-                color: 'rgba(255, 255, 255, 0.1)'
-              }
-            }
-          },
-          plugins: {
-            legend: {
-              labels: {
-                color: 'white'
-              }
-            },
-            title: {
-              display: true,
-              text: 'Most Prolific Authors',
-              color: 'white',
-              font: {
-                size: 16
-              }
-            }
-          }
-        }
-      }
-    };
-  };
-
-  const analyzeCountries = (data: JournalEntry[]): Message => {
-    // Count occurrences of each country
-    const countryCounts: Record<string, number> = {};
-    data.forEach(item => {
-      if (item.country && item.country !== '-') {
-        countryCounts[item.country] = (countryCounts[item.country] || 0) + 1;
-      }
-    });
-    
-    // Sort countries by representation count
-    const sortedCountries = Object.entries(countryCounts)
-      .sort((a, b) => b[1] - a[1]);
-    
-    // For visualization - take top 10 countries
-    const top10Countries = sortedCountries.slice(0, 10);
-    const labels = top10Countries.map(([country]) => country);
-    const values = top10Countries.map(([_, count]) => count);
-    
-    // Create color palette
-    const backgroundColors = [
-      'rgba(255, 99, 132, 0.7)',
-      'rgba(54, 162, 235, 0.7)',
-      'rgba(255, 206, 86, 0.7)',
-      'rgba(75, 192, 192, 0.7)',
-      'rgba(153, 102, 255, 0.7)',
-      'rgba(255, 159, 64, 0.7)',
-      'rgba(199, 199, 199, 0.7)',
-      'rgba(83, 102, 255, 0.7)',
-      'rgba(78, 252, 3, 0.7)',
-      'rgba(252, 45, 3, 0.7)'
-    ];
-    
-    return {
-      role: 'assistant',
-      content: `Countries represented in the collection:\n\n` +
-               sortedCountries.map(([country, count]) => `${country} (${count} articles)`).join('\n'),
-      visualization: {
-        type: 'pie',
-        data: {
-          labels: labels,
-          datasets: [{
-            data: values,
-            backgroundColor: backgroundColors,
-            borderColor: backgroundColors.map(color => color.replace('0.7', '1')),
-            borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              position: 'right',
-              labels: {
-                color: 'white'
-              }
-            },
-            title: {
-              display: true,
-              text: 'Top 10 Countries Represented',
-              color: 'white',
-              font: {
-                size: 16
-              }
-            }
-          }
-        }
-      }
-    };
-  };
-
-  const searchArticles = (data: JournalEntry[], query: string): Message => {
-    // Extract keywords from the query
-    const keywords = query.split(' ')
-      .filter(word => word.length > 3)
-      .map(word => word.toLowerCase());
-    
-    // Find articles matching keywords
-    const matchingArticles = data.filter(item => {
-      if (!item.article_name) return false;
-      
-      const articleName = item.article_name.toLowerCase();
-      return keywords.some(keyword => articleName.includes(keyword));
-    });
-    
-    if (matchingArticles.length === 0) {
-      return {
-        role: 'assistant',
-        content: "I couldn't find any articles matching your query in the collection."
-      };
-    }
-    
-    return {
-      role: 'assistant',
-      content: `Found ${matchingArticles.length} articles that might match your query:\n\n` +
-               matchingArticles
-                 .slice(0, 10)
-                 .map(item => `"${item.article_name || 'Untitled'}" by ${item.author || 'Unknown'} (${item.journal_year || 'Unknown year'})`)
-                 .join('\n')
-    };
-  };
-
-  const findMostActiveDecade = (data: JournalEntry[]): Message => {
-    // Count publications by decade
-    const decadeCounts: Record<string, number> = {};
-    
-    data.forEach(item => {
-      if (item.journal_year) {
-        const year = item.journal_year;
-        if (!isNaN(year)) {
-          const decade = Math.floor(year / 10) * 10;
-          decadeCounts[decade] = (decadeCounts[decade] || 0) + 1;
-        }
-      }
-    });
-    
-    // Find the decade with the most publications
-    let maxCount = 0;
-    let mostActiveDecade = 0;
-    
-    Object.entries(decadeCounts).forEach(([decade, count]) => {
-      if (count > maxCount) {
-        maxCount = count;
-        mostActiveDecade = parseInt(decade);
-      }
-    });
-    
-    // Sort all decades by activity
-    const sortedDecades = Object.entries(decadeCounts)
-      .sort((a, b) => parseInt(a[0]) - parseInt(b[0])); // Sort chronologically for timeline
-    
-    // For visualization
-    const labels = sortedDecades.map(([decade]) => `${decade}s`);
-    const values = sortedDecades.map(([_, count]) => count);
-    
-    return {
-      role: 'assistant',
-      content: `The most active decade for publications was the ${mostActiveDecade}s with ${maxCount} articles.\n\n` +
-               `Publication activity by decade:\n` +
-               Object.entries(decadeCounts)
-                 .sort((a, b) => b[1] - a[1]) // Sort by count for text display
-                 .map(([decade, count]) => `${decade}s: ${count} articles`)
-                 .join('\n'),
-      visualization: {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'Number of Publications',
-            data: values,
-            borderColor: 'rgba(75, 192, 192, 1)',
-            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-            borderWidth: 2,
-            tension: 0.1,
-            fill: true,
-            pointBackgroundColor: 'rgba(75, 192, 192, 1)',
-            pointRadius: 5,
-            pointHoverRadius: 7
-          }]
-        },
-        options: {
-          responsive: true,
-          scales: {
-            y: {
-              beginAtZero: true,
-              title: {
-                display: true,
-                text: 'Number of Publications',
-                color: 'white'
-              },
-              ticks: {
-                color: 'white'
-              },
-              grid: {
-                color: 'rgba(255, 255, 255, 0.1)'
-              }
-            },
-            x: {
-              title: {
-                display: true,
-                text: 'Decade',
-                color: 'white'
-              },
-              ticks: {
-                color: 'white'
-              },
-              grid: {
-                color: 'rgba(255, 255, 255, 0.1)'
-              }
-            }
-          },
-          plugins: {
-            legend: {
-              labels: {
-                color: 'white'
-              }
-            },
-            title: {
-              display: true,
-              text: 'Publication Activity Over Time',
-              color: 'white',
-              font: {
-                size: 16
-              }
-            }
-          }
-        }
-      }
-    };
-  };
-
-  // Function to render the appropriate chart based on the message
-  const renderChart = (visualization: Message['visualization']) => {
-    if (!visualization) return null;
-    
-    const { type, data, options } = visualization;
-    
-    switch (type) {
-      case 'pie':
-        return <div style={{ maxHeight: '300px', marginTop: '1rem' }}><Pie data={data} options={options} /></div>;
-      case 'bar':
-        return <div style={{ maxHeight: '300px', marginTop: '1rem' }}><Bar data={data} options={options} /></div>;
-      case 'line':
-        return <div style={{ maxHeight: '300px', marginTop: '1rem' }}><Line data={data} options={options} /></div>;
-      default:
-        return null;
-    }
-  };
+  const visible = QUERY_SPECS.slice(0, SHOWN_BY_DEFAULT);
 
   return (
     <div className={styles.container}>
       <Nav title="AI chat" />
 
+      <main
+        className={styles.main}
+        style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          backgroundColor: '#303841', padding: '2rem', width: '100%', boxSizing: 'border-box',
+        }}
+      >
+        {/* ---------- one panel: description, picker, transcript, input ---------- */}
+        <div
+          style={{
+            width: '85%', maxWidth: '100%', color: 'white', boxSizing: 'border-box',
+            backgroundColor: '#3A444E', borderRadius: '10px',
+            border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden',
+            display: 'flex', flexDirection: 'column',
+            height: 'calc(100vh - 220px)', minHeight: 520,
+          }}
+        >
+          {/* --- description + query picker --- */}
+          <header style={{ padding: '1.25rem 1.5rem', borderBottom: DIVIDER, flexShrink: 0 }}>
+            <h2 style={{ margin: '0 0 0.4rem', fontSize: '1.15rem' }}>Query assistant</h2>
+            <p style={{ margin: 0, lineHeight: 1.5, fontSize: '0.9rem', opacity: 0.65 }}>
+              Answers are computed directly from the data. Your wording is matched against{' '}
+              {QUERY_SPECS.length} question types rather than interpreted, so the same question always
+              returns the same answer, and every answer shows what was computed.
+            </p>
 
-      <main className={styles.main} style={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        alignItems: 'center',
-        gap: '1.5rem',
-        backgroundColor: '#303841',
-        padding: '2rem',
-        borderRadius: '8px',
-        width: '100%',
-        maxWidth: '100%',
-        boxSizing: 'border-box',
-        height: 'calc(100vh - 120px)'
-      }}>
-        <div style={{ 
-          width: '80%', 
-          backgroundColor: '#3A444E', 
-          padding: '1.5rem', 
-          borderRadius: '8px',
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          maxHeight: '100%',
-          boxSizing: 'border-box'
-        }}>
-          <h2 style={{ color: 'white', marginTop: 0, marginBottom: '1rem' }}>AI Assistant</h2>
-          
-          {loading ? (
-            <div style={{ 
-              color: 'white',
-              textAlign: 'center',
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <p style={{ fontFamily: 'verdana', fontSize: '1rem' }}>
-                Loading the data...
-              </p>
-            </div>
-          ) : (
-            <>
-              <div style={{
-                flex: 1,
-                overflowY: 'auto',
-                marginBottom: '1rem',
-                padding: '1rem',
-                backgroundColor: '#2C3440',
-                borderRadius: '6px'
-              }}>
-                {messages.map((message, index) => (
-                  <div key={index} style={{
-                    marginBottom: '1rem',
-                    padding: '0.8rem 1rem',
-                    borderRadius: '6px',
-                    backgroundColor: message.role === 'user' ? '#4A5964' : '#2C3440',
-                    color: 'white',
-                    whiteSpace: 'pre-wrap'
-                  }}>
-                    <strong>{message.role === 'user' ? 'You: ' : 'Assistant: '}</strong>
-                    {message.content}
-                    {message.visualization && renderChart(message.visualization)}
-                  </div>
-                ))}
-                {thinking && (
-                  <div style={{
-                    marginBottom: '1rem',
-                    padding: '0.8rem 1rem',
-                    borderRadius: '6px',
-                    backgroundColor: '#2C3440',
-                    color: 'white'
-                  }}>
-                    <strong>Assistant: </strong>
-                    Thinking...
-                  </div>
-                )}
-                <div ref={chatEndRef} />
-              </div>
-              
-              <form onSubmit={handleSubmit} style={{
-                display: 'flex',
-                gap: '0.5rem'
-              }}>
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Ask about the journal collection..."
-                  style={{
-                    flex: 1,
-                    padding: '0.8rem 1rem',
-                    borderRadius: '6px',
-                    border: 'none',
-                    backgroundColor: '#2C3440',
-                    color: 'white'
-                  }}
-                />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', marginTop: '0.9rem' }}>
+              {visible.map((s) => (
                 <button
-                  type="submit"
-                  disabled={thinking}
-                  style={{
-                    padding: '0.8rem 1.2rem',
-                    borderRadius: '6px',
-                    border: 'none',
-                    backgroundColor: '#00ADB5',
-                    color: 'white',
-                    fontWeight: 'bold',
-                    cursor: thinking ? 'not-allowed' : 'pointer',
-                    opacity: thinking ? 0.7 : 1
-                  }}
+                  key={s.id}
+                  onClick={() => ask(s.example)}
+                  title={s.takes ? `${s.label} · filters: ${s.takes}` : s.label}
+                  style={chipStyle}
                 >
-                  {thinking ? 'Thinking...' : 'Send'}
+                  {s.example}
                 </button>
-              </form>
-            </>
-          )}
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: '1.1rem', marginTop: '0.7rem', flexWrap: 'wrap' }}>
+              <button onClick={() => setModal('all')} style={linkStyle}>
+                Show all {QUERY_SPECS.length}
+              </button>
+              <button onClick={() => setModal('limits')} style={linkStyle}>
+                What it cannot do
+              </button>
+            </div>
+          </header>
+
+          {/* --- transcript --- */}
+          <div
+            ref={scrollRef}
+            style={{
+              flex: 1, overflowY: 'auto', padding: '1.25rem 1.5rem',
+              display: 'flex', flexDirection: 'column', gap: '1rem',
+            }}
+          >
+            {loading && <p style={{ margin: 0, opacity: 0.6 }}>Loading data…</p>}
+            {!loading && error && <p style={{ margin: 0 }}>Could not load the dataset: {error}</p>}
+            {!loading && !error && turns.length === 0 && (
+              <p style={{ margin: 'auto 0', textAlign: 'center', opacity: 0.4, fontSize: '0.88rem' }}>
+                {rows.length.toLocaleString()} rows loaded. Pick a question above, or type one below.
+              </p>
+            )}
+
+            {turns.map((t, i) =>
+              t.role === 'user' ? (
+                <div key={i} style={{ ...bubble, backgroundColor: '#2C3440', alignSelf: 'flex-end', maxWidth: '80%' }}>
+                  {t.text}
+                </div>
+              ) : (
+                <div key={i} style={{ ...bubble, backgroundColor: '#4A5964' }}>
+                  {t.result.ok ? (
+                    <>
+                      <h3 style={{ margin: '0 0 0.45rem', fontSize: '1rem' }}>{t.result.title}</h3>
+                      <p style={{ margin: 0, lineHeight: 1.5 }}>{t.result.prose}</p>
+                      {t.result.chart && <ChartView spec={t.result.chart} />}
+                      {t.result.list && (
+                        <ol style={{ margin: '0.9rem 0 0', paddingLeft: '1.4rem', lineHeight: 1.6, fontSize: '0.9rem' }}>
+                          {t.result.list.map((line, k) => <li key={k}>{line}</li>)}
+                        </ol>
+                      )}
+                      <p style={{
+                        margin: '0.9rem 0 0', paddingTop: '0.55rem', borderTop: DIVIDER,
+                        fontSize: '0.75rem', opacity: 0.55, fontFamily: 'Consolas, monospace',
+                      }}>
+                        {t.result.provenance.handler}() · filter: {t.result.provenance.filter} ·{' '}
+                        {t.result.provenance.rowsConsidered.toLocaleString()} rows considered
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p style={{ margin: 0, lineHeight: 1.5 }}>{t.result.reason}</p>
+                      {t.result.suggestions.length > 0 && (
+                        <div style={{ marginTop: '0.7rem', display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                          {t.result.suggestions.map((s) => (
+                            <button key={s} onClick={() => ask(s)} style={chipStyle}>{s}</button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )
+            )}
+          </div>
+
+          {/* --- input --- */}
+          <footer style={{ padding: '1rem 1.5rem', borderTop: DIVIDER, display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') ask(input); }}
+              placeholder="Ask about the collection…"
+              disabled={loading || !!error}
+              style={{
+                flex: 1, padding: '0.7rem 1rem', backgroundColor: '#2C3440', color: 'white',
+                border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', fontSize: '0.95rem',
+              }}
+            />
+            <button
+              onClick={() => ask(input)}
+              disabled={loading || !!error}
+              style={{
+                padding: '0.7rem 1.35rem', backgroundColor: '#b98c54', color: 'white',
+                border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.95rem',
+              }}
+            >
+              Ask
+            </button>
+          </footer>
         </div>
+
+        {modal && (
+          <Modal
+            title={modal === 'all' ? `All ${QUERY_SPECS.length} question types` : 'What it cannot do'}
+            onClose={() => setModal(null)}
+          >
+            {modal === 'all' ? (
+              <>
+                <p style={{ margin: '0 0 1rem', fontSize: '0.85rem', opacity: 0.65, lineHeight: 1.5 }}>
+                  This list is generated from the handlers themselves, so it cannot describe
+                  something the tool does not do. Click any question to run it.
+                </p>
+                <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+                  {QUERY_SPECS.map((s) => (
+                    <li key={s.id}>
+                      <button
+                        onClick={() => { setModal(null); ask(s.example); }}
+                        style={{ ...chipStyle, borderRadius: '6px', textAlign: 'left', width: '100%' }}
+                      >
+                        {s.example}
+                      </button>
+                      <div style={{ fontSize: '0.74rem', opacity: 0.55, marginTop: '0.25rem', paddingLeft: '0.2rem' }}>
+                        {s.label}{s.takes ? ` · filters: ${s.takes}` : ''}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.88rem', opacity: 0.8, lineHeight: 1.6 }}>
+                {LIMITATIONS.map((l, i) => <li key={i} style={{ marginBottom: '0.6rem' }}>{l}</li>)}
+              </ul>
+            )}
+          </Modal>
+        )}
       </main>
     </div>
   );
 }
+
+function Modal({
+  title, onClose, children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '2rem', zIndex: 200,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          backgroundColor: '#3A444E', color: 'white', borderRadius: '10px',
+          border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 12px 40px rgba(0,0,0,0.45)',
+          width: 'min(560px, 100%)', maxHeight: '70vh', display: 'flex', flexDirection: 'column',
+        }}
+      >
+        <div style={{
+          padding: '1rem 1.25rem', borderBottom: DIVIDER, display: 'flex',
+          justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
+        }}>
+          <strong style={{ fontSize: '0.98rem' }}>{title}</strong>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            style={{ background: 'none', border: 'none', color: 'white', opacity: 0.6, cursor: 'pointer', fontSize: '1.2rem', lineHeight: 1, padding: 0 }}
+          >
+            ×
+          </button>
+        </div>
+        <div style={{ padding: '1.25rem', overflowY: 'auto' }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+const bubble: React.CSSProperties = {
+  borderRadius: '8px',
+  padding: '0.9rem 1rem',
+  boxSizing: 'border-box',
+  lineHeight: 1.5,
+};
+
+const chipStyle: React.CSSProperties = {
+  backgroundColor: '#303841',
+  color: '#e8c89a',
+  border: '1px solid rgba(185, 140, 84, 0.4)',
+  borderRadius: '999px',
+  padding: '0.4rem 0.8rem',
+  cursor: 'pointer',
+  fontSize: '0.82rem',
+  lineHeight: 1.3,
+};
+
+const linkStyle: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  color: '#b98c54',
+  cursor: 'pointer',
+  padding: 0,
+  fontSize: '0.8rem',
+};

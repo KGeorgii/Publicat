@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../publicat.config';
-import { parseCsv } from './loadCsv';
+import { parseCsv, encodeId } from './loadCsv';
 import type { Journal } from '../types/journal';
 
 /**
@@ -31,9 +31,10 @@ async function getIndex(): Promise<Map<string, Journal[]>> {
   const map = new Map<string, Journal[]>();
   for (const row of rows) {
     if (!row.journal_id) continue;
-    const existing = map.get(row.journal_id);
+    const key = encodeId(row.journal_id);
+    const existing = map.get(key);
     if (existing) existing.push(row);
-    else map.set(row.journal_id, [row]);
+    else map.set(key, [row]);
   }
   index = map;
   return index;
