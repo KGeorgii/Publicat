@@ -1,35 +1,44 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import {
+  createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode,
+} from 'react';
 import { browserCsvUrl, parseCsv } from './loadCsv';
 import type { Journal } from '../types/journal';
 
 type State = { rows: Journal[]; loading: boolean; error: string | null };
+type Ctx = State & { request: () => void };
 
-const Ctx = createContext<State>({ rows: [], loading: true, error: null });
+const DataCtx = createContext<Ctx>({
+  rows: [], loading: true, error: null, request: () => {},
+});
 
 /**
- * Fetches and parses the CSV exactly once per session. Mounted in _app.tsx,
- * so navigating between pages reuses the parsed array instead of refetching.
+ * Fetches and parses the CSV at most once per session, and only when a page
+ * actually asks for it. Statically generated pages (the issue pages) already
+ * have their data in the HTML, so they never trigger the download.
  */
 export function JournalDataProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>({ rows: [], loading: true, error: null });
+  const started = useRef(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  const request = useCallback(() => {
+    if (started.current) return;
+    started.current = true;
+
     fetch(browserCsvUrl)
       .then((r) => {
         if (!r.ok) throw new Error(`CSV fetch failed: ${r.status} (${browserCsvUrl})`);
         return r.text();
       })
-      .then((text) => {
-        if (!cancelled) setState({ rows: parseCsv(text), loading: false, error: null });
-      })
-      .catch((e: Error) => {
-        if (!cancelled) setState({ rows: [], loading: false, error: e.message });
-      });
-    return () => { cancelled = true; };
+      .then((text) => setState({ rows: parseCsv(text), loading: false, error: null }))
+      .catch((e: Error) => setState({ rows: [], loading: false, error: e.message }));
   }, []);
 
-  return <Ctx.Provider value={state}>{children}</Ctx.Provider>;
+  return <DataCtx.Provider value={{ ...state, request }}>{children}</DataCtx.Provider>;
 }
 
-export const useJournalData = () => useContext(Ctx);
+/** Calling this hook is what triggers the fetch. */
+export function useJournalData() {
+  const { rows, loading, error, request } = useContext(DataCtx);
+  useEffect(() => { request(); }, [request]);
+  return { rows, loading, error };
+}
