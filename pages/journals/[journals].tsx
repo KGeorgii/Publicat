@@ -1,119 +1,57 @@
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import styles from '../../styles/Home.module.css';
-import Papa from 'papaparse';
-import Head from 'next/head';
-import Link from 'next/link';
+import Nav from '../../components/Nav';
+import { useJournalData } from '../../lib/useJournalData';
 
-interface Journal {
-  journal_id: string;
-  article_name: string;
-  author: string;
-  translator: string;
-  language: string;
-  journal_name: string;
-  journal_year: number;
-  journal_number: string;
-}
-
-const CSV_URL = '/data/data_2.csv';
-
-export default function Journals() {
-  const [journalDetails, setJournalDetails] = useState<Journal[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function JournalIssue() {
   const router = useRouter();
-  const [filteredJournalDetails, setFilteredJournalDetails] = useState<Journal[]>([]);
+  const { rows, loading, error } = useJournalData();
 
-  // Fetch the data from the GitHub CSV file
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch(CSV_URL);
-        if (!response.ok) {
-          throw new Error('Failed to fetch CSV from GitHub');
-        }
-
-        const csvText = await response.text();
-        Papa.parse(csvText, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (result) => {
-            const parsedData: Journal[] = result.data.map((item: any) => ({
-              journal_id: item.journal_id,
-              article_name: item.article_name,
-              author: item.author,
-              translator: item.translator,
-              language: item.language,
-              journal_name: item.journal_name,
-              journal_year: Number(item.journal_year),
-              journal_number: item.journal_number,
-            }));
-            setJournalDetails(parsedData);
-            setLoading(false);
-          },
-        });
-      } catch (err) {
-        console.error(err);
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  // Extract the journal ID from the URL and filter the details
-  useEffect(() => {
-    const pathSegments = router.asPath.split('/');
-    const extractedId = pathSegments[pathSegments.length - 1];
-
-    if (extractedId && journalDetails.length > 0) {
-      const filteredJournal = journalDetails.filter(
-        journal => journal.journal_id === extractedId
-      );
-
-      setFilteredJournalDetails(filteredJournal);
-    }
-  }, [router.asPath, journalDetails]);
+  const id = typeof router.query.journals === 'string' ? router.query.journals : '';
+  const articles = rows.filter((r) => r.journal_id === id);
+  const issue = articles[0];
 
   return (
     <div className={styles.container}>
-      <Head>
-        <title>Vsesvit</title>
-        <meta name="description" content="Vsesvit project" />
-      </Head>
+      <Nav title={issue ? `${issue.journal_name} ${issue.journal_year}` : 'Issue'} />
 
-      {/* Top Navigation Bar */}
-      <nav className={styles.navbar}>
-        <ul className={styles.navList}>
-          <li className={styles.navItem}><Link href="/">Main</Link></li>
-          <li className={styles.navItem}><Link href="/search">Search</Link></li>
-          <li className={styles.navItem}><Link href="/ai_chat">AI chat</Link></li>
-          <li className={styles.navItem}><Link href="/about">About</Link></li>
-        </ul>
-      </nav>
+      <main className={styles.main} style={{ color: 'white', width: '70%' }}>
+        {loading && <p>Loading…</p>}
 
-      <main className={styles.main}>
-        {loading ? (
-          <p>Loading...</p>
-        ) : (
-          <div>
-            {filteredJournalDetails.length > 0 ? (
-              <div>
-                <h2>Journal Details: {filteredJournalDetails[0].journal_name}, {filteredJournalDetails[0].journal_year}, {filteredJournalDetails[0].journal_number}</h2>
-                <ul>
-                  {filteredJournalDetails.map((journal, index) => (
-                    <li key={index}>
-                      {journal.article_name}, {journal.author}
-                      {journal.translator && journal.translator !== '' && `, ${journal.translator}`}
-                      {journal.language && journal.language !== '' && `, ${journal.language}`}
-                      {/* Display additional properties */}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <p>No journal details found for the specified ID.</p>
-            )}
+        {!loading && error && (
+          <p>Could not load the dataset: {error}</p>
+        )}
+
+        {!loading && !error && !issue && (
+          <p>No issue found with id &quot;{id}&quot;.</p>
+        )}
+
+        {!loading && !error && issue && (
+          <div
+            style={{
+              backgroundColor: '#3A444E',
+              padding: '1.5rem',
+              borderRadius: '8px',
+              boxSizing: 'border-box',
+            }}
+          >
+            <h2 style={{ marginTop: 0 }}>
+              {issue.journal_name}, {issue.journal_year}, №{issue.journal_number}
+            </h2>
+            <p style={{ opacity: 0.8, marginTop: 0 }}>
+              {articles.length} {articles.length === 1 ? 'item' : 'items'} in this issue
+            </p>
+            <ul style={{ lineHeight: 1.6, paddingLeft: '1.2rem' }}>
+              {articles.map((a, i) => (
+                <li key={`${a.journal_id}-${i}`}>
+                  <strong>{a.article_name || 'Untitled'}</strong>
+                  {a.author && <> — {a.author}</>}
+                  {a.translator && <> (trans. {a.translator})</>}
+                  {a.language_latin && <> · {a.language_latin}</>}
+                  {a.country_latin && <> · {a.country_latin}</>}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </main>

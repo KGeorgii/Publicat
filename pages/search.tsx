@@ -1,157 +1,75 @@
-"use client";
-import { useEffect, useState } from "react";
-import styles from '../styles/Home.module.css';
-import Head from 'next/head';
+import { useState } from 'react';
 import Link from 'next/link';
-import logo from '../asset/logo.png';
-import Image from 'next/image';
-import Papa from 'papaparse';
-
-interface Journal {
-  journal_id: string;
-  journal_name: string;
-  journal_year: number;
-  journal_number: number;
-  article_name: string;
-  author: string | null;
-  translator?: string;
-  language?: string;
-}
-
-// GitHub CSV URL - replace with your actual CSV URL
-const CSV_URL = 'https://raw.githubusercontent.com/KGeorgii/vsesvit/refs/heads/main/vsesvit_test_2.csv';
+import styles from '../styles/Home.module.css';
+import Nav from '../components/Nav';
+import { useJournalData } from '../lib/useJournalData';
+import type { Journal } from '../types/journal';
 
 export default function SearchPage() {
+  const { rows, loading, error } = useJournalData();
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState<Journal[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const getData = async () => {
-    try {
-      const response = await fetch(CSV_URL);
-      if (!response.ok) throw new Error('Failed to fetch CSV from GitHub');
+  const term = searchTerm.trim().toLowerCase();
 
-      const csvText = await response.text();
-      Papa.parse(csvText, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (result) => {
-          const parsedData: Journal[] = result.data.map((item: any) => ({
-            journal_id: item.journal_id,
-            journal_name: item.journal_name,
-            journal_year: Number(item.journal_year) || 0,
-            journal_number: Number(item.journal_number) || 0,
-            article_name: item.article_name || '',
-            author: item.author || null,
-            translator: item.translator || '',
-            language: item.language || ''
-          }));
+  // Group matches by which field they matched on, which is how researchers
+  // actually arrive: by a known author, a known text, or a known translator.
+  const blocks: Record<string, Journal[]> = {};
+  if (term) {
+    const sorted = [...rows].sort((a, b) => a.journal_id.localeCompare(b.journal_id));
+    const push = (key: string, j: Journal) => {
+      (blocks[key] ||= []).push(j);
+    };
+    sorted.forEach((j) => {
+      if (j.author.toLowerCase().includes(term)) push('Author', j);
+      if (j.article_name.toLowerCase().includes(term)) push('Article Name', j);
+      if (j.translator.toLowerCase().includes(term)) push('Translator', j);
+    });
+  }
 
-          setSearchResults(parsedData);
-        },
-      });
-    } catch (err) {
-      console.error('Error loading CSV:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    getData();
-  }, []);
-
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const searchTerm = e.target.value.toLowerCase();
-    setSearchTerm(searchTerm);
-  };
-
-  const sortedResults = [...searchResults].sort((a, b) => {
-    return a.journal_id.localeCompare(b.journal_id);
-  });
-
-  const blocks: { [key: string]: Journal[] } = {};
-
-  sortedResults.forEach(journal => {
-    if (searchTerm === '') return;
-    
-    if (journal.translator && journal.translator.toLowerCase().includes(searchTerm.toLowerCase())) {
-      if (!blocks['Translator']) {
-        blocks['Translator'] = [];
-      }
-      blocks['Translator'].push(journal);
-    }
-
-    if (journal.article_name.toLowerCase().includes(searchTerm.toLowerCase())) {
-      if (!blocks['Article Name']) {
-        blocks['Article Name'] = [];
-      }
-      blocks['Article Name'].push(journal);
-    }
-
-    if (journal.author && journal.author.toLowerCase().includes(searchTerm.toLowerCase())) {
-      if (!blocks['Author']) {
-        blocks['Author'] = [];
-      }
-      blocks['Author'].push(journal);
-    }
-  });
+  const hasResults = Object.keys(blocks).length > 0;
 
   return (
     <div className={styles.container}>
-      <Head>
-        <title>Vsesvit</title>
-        <meta name="description" content="Vsesvit project" />
-      </Head>
+      <Nav title="Search" />
 
-      {/* Top Navigation Bar */}
-      <nav className={styles.navbar}>
-        <ul className={styles.navList}>
-          <li className={styles.navItem}><Link href="/">Main</Link></li>
-          <li className={styles.navItem}><Link href="/search">Search</Link></li>
-          <li className={styles.navItem}><Link href="/visualizations">Visualizations</Link></li>
-          <li className={styles.navItem}><Link href="/ai_chat">AI chat</Link></li>
-          <li className={styles.navItem}><Link href="/about">About</Link></li>
-        </ul>
-      </nav>
-
-
-      <main className={styles.main} style={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        alignItems: 'center',
-        gap: '3rem',
-        backgroundColor: '#303841',
-        padding: '2rem',
-        borderRadius: '8px',
-        width: '100%',
-        maxWidth: '100%',
-        boxSizing: 'border-box'
-      }}>
-        <div style={{ 
-          width: '70%', 
-          backgroundColor: '#3A444E', 
-          padding: '1.5rem', 
+      <main
+        className={styles.main}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '3rem',
+          backgroundColor: '#303841',
+          padding: '2rem',
           borderRadius: '8px',
-          maxWidth: '100%',
+          width: '100%',
           boxSizing: 'border-box',
-          overflow: 'hidden'
-        }}>
-          <h2 style={{ color: 'white', marginTop: 0 }}>Journal Search</h2>
-          <p style={{ fontFamily: 'verdana', fontSize: '1rem', lineHeight: '1.5', margin: '0 0 1.5rem 0', color: 'white' }}>
-            Search for journals by author, article name, or translator.
+        }}
+      >
+        <div
+          style={{
+            width: '70%',
+            backgroundColor: '#3A444E',
+            padding: '1.5rem',
+            borderRadius: '8px',
+            maxWidth: '100%',
+            boxSizing: 'border-box',
+            overflow: 'hidden',
+            color: 'white',
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>Journal Search</h2>
+          <p style={{ fontFamily: 'verdana', fontSize: '1rem', lineHeight: '1.5', margin: '0 0 1.5rem 0' }}>
+            Search by author, article title, or translator.
           </p>
-          
-          <div style={{
-            width: '100%',
-            marginBottom: '1.5rem'
-          }}>
+
+          <div style={{ width: '100%', marginBottom: '1.5rem' }}>
             <input
               type="text"
-              placeholder="Search journals..."
+              placeholder="Search…"
               value={searchTerm}
-              onChange={handleSearch}
-              style={{ 
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
                 width: '100%',
                 padding: '0.75rem 1rem',
                 backgroundColor: '#2C3440',
@@ -159,95 +77,93 @@ export default function SearchPage() {
                 border: 'none',
                 borderRadius: '4px',
                 fontSize: '1rem',
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
               }}
             />
           </div>
-        
-          {loading ? (
-            <div style={{ 
-              textAlign: 'center',
-              color: 'white',
-              padding: '1rem'
-            }}>
-              <p style={{ fontFamily: 'verdana', fontSize: '1rem', lineHeight: '1.5', margin: 0 }}>
-                Getting Vsesvit data...
-              </p>
-            </div>
-          ) : (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1.5rem',
-              width: '100%',
-              maxWidth: '100%',
-              boxSizing: 'border-box'
-            }}>
-              {Object.entries(blocks).length === 0 && searchTerm !== '' ? (
-                <div style={{ color: 'white', textAlign: 'center', padding: '1rem' }}>
-                  <p>No results found for &quot;{searchTerm}&quot;</p>
-                </div>
-              ) : (
-                Object.entries(blocks).map(([blockName, journals]) => (
-                  <div key={blockName} style={{
+
+          {loading && <p style={{ textAlign: 'center', margin: 0 }}>Loading data…</p>}
+          {!loading && error && <p style={{ textAlign: 'center', margin: 0 }}>Could not load the dataset: {error}</p>}
+
+          {!loading && !error && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
+              {!term && <p style={{ textAlign: 'center' }}>Enter a search term to begin.</p>}
+
+              {term && !hasResults && <p style={{ textAlign: 'center' }}>No results for &quot;{searchTerm}&quot;.</p>}
+
+              {Object.entries(blocks).map(([blockName, items]) => (
+                <div
+                  key={blockName}
+                  style={{
                     backgroundColor: '#4A5964',
                     borderRadius: '4px',
                     padding: '1rem',
                     width: '100%',
-                    maxWidth: '100%',
                     boxSizing: 'border-box',
-                    overflow: 'auto'
-                  }}>
-                    <h3 style={{ color: 'white', marginTop: 0 }}>{blockName}</h3>
-                    <div style={{
+                    overflow: 'auto',
+                  }}
+                >
+                  <h3 style={{ marginTop: 0 }}>
+                    {blockName} <span style={{ opacity: 0.7, fontWeight: 'normal' }}>({items.length})</span>
+                  </h3>
+                  <div
+                    style={{
                       display: 'grid',
                       gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
                       gap: '1rem',
                       width: '100%',
-                      boxSizing: 'border-box'
-                    }}>
-                      {journals.map((journal, index) => (
-                        <div 
-                          key={index}
-                          style={{
-                            backgroundColor: '#303841',
-                            borderRadius: '4px',
-                            padding: '1rem',
-                            transition: 'background-color 0.3s',
-                            cursor: 'pointer',
-                            color: 'white',
-                            wordWrap: 'break-word',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.5rem'
-                          }}
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    {items.slice(0, 100).map((journal, index) => (
+                      <div
+                        key={`${journal.journal_id}-${index}`}
+                        style={{
+                          backgroundColor: '#303841',
+                          borderRadius: '4px',
+                          padding: '1rem',
+                          wordWrap: 'break-word',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.5rem',
+                        }}
+                      >
+                        <Link
+                          href={`/journals/${journal.journal_id}`}
+                          style={{ color: '#b98c54', textDecoration: 'none', fontWeight: 'bold' }}
                         >
-                          <Link href={`/journals/${journal.journal_id}`} style={{
-                            color: '#b98c54',
-                            textDecoration: 'none',
-                            fontWeight: 'bold'
-                          }}>
-                            {journal.journal_name} ({journal.journal_year}, №{journal.journal_number})
-                          </Link>
-                          <div style={{ fontSize: '0.9rem' }}>
-                            <p style={{ margin: '0.2rem 0' }}><strong>Article:</strong> {journal.article_name}</p>
-                            {journal.author && <p style={{ margin: '0.2rem 0' }}><strong>Author:</strong> {journal.author}</p>}
-                            {journal.translator && journal.translator !== '' && 
-                              <p style={{ margin: '0.2rem 0' }}><strong>Translator:</strong> {journal.translator}</p>}
-                            {journal.language && journal.language !== '' && 
-                              <p style={{ margin: '0.2rem 0' }}><strong>Language:</strong> {journal.language}</p>}
-                          </div>
+                          {journal.journal_name} ({journal.journal_year}, №{journal.journal_number})
+                        </Link>
+                        <div style={{ fontSize: '0.9rem' }}>
+                          <p style={{ margin: '0.2rem 0' }}>
+                            <strong>Article:</strong> {journal.article_name}
+                          </p>
+                          {journal.author && (
+                            <p style={{ margin: '0.2rem 0' }}>
+                              <strong>Author:</strong> {journal.author}
+                            </p>
+                          )}
+                          {journal.translator && (
+                            <p style={{ margin: '0.2rem 0' }}>
+                              <strong>Translator:</strong> {journal.translator}
+                            </p>
+                          )}
+                          {journal.language_latin && (
+                            <p style={{ margin: '0.2rem 0' }}>
+                              <strong>Language:</strong> {journal.language_latin}
+                            </p>
+                          )}
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                ))
-              )}
-              {searchTerm === '' && (
-                <div style={{ color: 'white', textAlign: 'center', padding: '1rem' }}>
-                  <p>Enter a search term to find journals</p>
+                  {items.length > 100 && (
+                    <p style={{ marginBottom: 0, opacity: 0.7 }}>
+                      Showing the first 100 of {items.length} matches.
+                    </p>
+                  )}
                 </div>
-              )}
+              ))}
             </div>
           )}
         </div>

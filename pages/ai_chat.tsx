@@ -1,10 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
-import Link from 'next/link';
 import styles from '../styles/Home.module.css';
-import Image from 'next/image';
-import logo from '../asset/logo.png';
-import Head from 'next/head';
-import Papa from 'papaparse';
+import Nav from '../components/Nav';
+import { useJournalData } from '../lib/useJournalData';
+import type { Journal as JournalEntry } from '../types/journal';
 // Import chart.js for visualizations
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title, PointElement, LineElement } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
@@ -12,20 +10,6 @@ import { Bar, Pie, Line } from 'react-chartjs-2';
 // Register Chart.js components
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, PointElement, LineElement);
 
-const CSV_URL = '/data/data_2.csv';
-
-// Define the type for journal entries
-interface JournalEntry {
-  journal_id?: string;
-  journal_year?: string;
-  article_name?: string;
-  author?: string;
-  translator?: string;
-  language_name?: string;
-  country?: string;
-  country_latin?: string;
-  [key: string]: string | undefined; // For any other fields in the CSV
-}
 
 // Define the type for chat messages
 interface Message {
@@ -39,8 +23,7 @@ interface Message {
 }
 
 export default function AiChat() {
-  const [journals, setJournals] = useState<JournalEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { rows: journals, loading, error: loadError } = useJournalData();
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<Message[]>([
     { 
@@ -51,40 +34,20 @@ export default function AiChat() {
   const [thinking, setThinking] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch the data when the component mounts
-  useEffect(() => {
-    getData();
-  }, []);
-
   // Automatically scroll to the bottom of the chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const getData = async () => {
-    try {
-      const response = await fetch(CSV_URL);
-      if (!response.ok) throw new Error('Failed to fetch CSV from GitHub');
-
-      const csvText = await response.text();
-      Papa.parse(csvText, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (result) => {
-          // Explicitly cast the parsed data to JournalEntry[]
-          setJournals(result.data as JournalEntry[]);
-          setLoading(false);
-        },
-      });
-    } catch (err) {
-      console.error('Error loading CSV:', err);
-      setLoading(false);
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: 'Sorry, I encountered an error loading the journal data. Please try again later.' 
-      }]);
-    }
-  };
+  // Surface a dataset load failure in the transcript rather than answering
+  // every question from an empty array.
+  useEffect(() => {
+    if (!loadError) return;
+    setMessages((prev) => [
+      ...prev,
+      { role: 'assistant', content: `I could not load the journal data: ${loadError}` },
+    ]);
+  }, [loadError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,7 +153,7 @@ export default function AiChat() {
     if (matchedDecade) {
       const [startYear, endYear] = decadeMapping[matchedDecade];
       filteredData = data.filter(item => {
-        const year = parseInt(item.journal_year || '0');
+        const year = item.journal_year;
         return year >= startYear && year < endYear;
       });
     }
@@ -198,8 +161,8 @@ export default function AiChat() {
     // Count language occurrences
     const languageCounts: Record<string, number> = {};
     filteredData.forEach(item => {
-      if (item.language_name) {
-        languageCounts[item.language_name] = (languageCounts[item.language_name] || 0) + 1;
+      if (item.language_latin) {
+        languageCounts[item.language_latin] = (languageCounts[item.language_latin] || 0) + 1;
       }
     });
 
@@ -304,7 +267,7 @@ export default function AiChat() {
       // It's a decade like "1960s"
       const decadeStart = parseInt(period.substring(0, 4));
       filteredData = data.filter(item => {
-        const year = parseInt(item.journal_year || '0');
+        const year = item.journal_year;
         return year >= decadeStart && year < decadeStart + 10;
       });
       periodText = period;
@@ -381,7 +344,7 @@ export default function AiChat() {
       };
     } else {
       // It's a specific year
-      filteredData = data.filter(item => item.journal_year === period);
+      filteredData = data.filter(item => item.journal_year === Number(period));
       periodText = `year ${period}`;
       
       // Get unique journal IDs
@@ -679,7 +642,7 @@ export default function AiChat() {
     
     data.forEach(item => {
       if (item.journal_year) {
-        const year = parseInt(item.journal_year);
+        const year = item.journal_year;
         if (!isNaN(year)) {
           const decade = Math.floor(year / 10) * 10;
           decadeCounts[decade] = (decadeCounts[decade] || 0) + 1;
@@ -802,20 +765,7 @@ export default function AiChat() {
 
   return (
     <div className={styles.container}>
-      <Head>
-        <title>AI Assistant</title>
-        <meta name="description" content="AI-powered assistant for the journal collection" />
-      </Head>
-
-      <nav className={styles.navbar}>
-        <ul className={styles.navList}>
-          <li className={styles.navItem}><Link href="/">Main</Link></li>
-          <li className={styles.navItem}><Link href="/search">Search</Link></li>
-          <li className={styles.navItem}><Link href="/visualizations">Visualizations</Link></li>
-          <li className={styles.navItem}><Link href="/ai_chat">AI chat</Link></li>
-          <li className={styles.navItem}><Link href="/about">About</Link></li>
-        </ul>
-      </nav>
+      <Nav title="AI chat" />
 
 
       <main className={styles.main} style={{ 
