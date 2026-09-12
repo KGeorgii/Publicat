@@ -15,12 +15,13 @@ export default function JournalIssue() {
     <div className={styles.container}>
       <Nav title={issue ? `${issue.journal_name} ${issue.journal_year}` : 'Issue'} />
 
-      <main className={styles.main} style={{ color: 'white', width: '70%' }}>
+      {/* .main is already a centred flex column (align-items: center), so it
+          must stay full width — constraining <main> itself is what pushed the
+          content left. The width belongs on the child. */}
+      <main className={styles.main}>
         {loading && <p>Loading…</p>}
 
-        {!loading && error && (
-          <p>Could not load the dataset: {error}</p>
-        )}
+        {!loading && error && <p>Could not load the dataset: {error}</p>}
 
         {!loading && !error && !issue && (
           <p>No issue found with id &quot;{id}&quot;.</p>
@@ -29,6 +30,8 @@ export default function JournalIssue() {
         {!loading && !error && issue && (
           <div
             style={{
+              width: '70%',
+              maxWidth: '100%',
               backgroundColor: '#3A444E',
               padding: '1.5rem',
               borderRadius: '8px',
