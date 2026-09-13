@@ -16,6 +16,7 @@ export const config = {
     { href: '/', label: 'Main' },
     { href: '/search', label: 'Search' },
     { href: '/visualizations', label: 'Visualizations' },
+    { href: '/network', label: 'Network' },
     { href: '/ai_chat', label: 'AI chat' },
     { href: '/about', label: 'About' },
   ],
