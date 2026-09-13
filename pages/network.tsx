@@ -47,7 +47,7 @@ export default function NetworkPage() {
   const [minItems, setMinItems] = useState(5);
   const [selected, setSelected] = useState<Point | null>(null);
   const [paused, setPaused] = useState(false);
-  const graphRef = useRef<{ pause?: () => void; start?: () => void; restart?: () => void } | null>(null);
+  const graphRef = useRef<any>(null);
 
   const { points, links, legend, shownAuthors, totalAuthors } = useMemo(() => {
     const pairs = new Map<string, number>();
