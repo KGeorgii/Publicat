@@ -1,139 +1,153 @@
 # Publicat
 
-**Publicat** is a fast, scalable, and beautiful web app that transforms any structured `.csv` bibliography into an interactive journal explorer. Featuring timeline views, search capabilities, and D3.js visualizations, it's the perfect way to share archival metadata with the world—instantly.
+An open-source framework for publishing periodical bibliography data as an
+interactive archive. Supply a CSV; get a deployable site with faceted search,
+per-issue pages, five visualisations, a network view, and a rule-based query
+assistant. No database, no server administration.
 
-This project builds on the structure of [vsesvit.vercel.app](https://vsesvit.vercel.app) and generalizes it for *any* CSV-based journal archive.
-
----
-
-## 🚀 Features
-
-- 📂 **Plug & Play CSV Input** — Just drop in your `.csv` file.
-- 🕰️ **Browse by Decade** — Explore issues across time.
-- 🔍 **Search Everything** — Find articles by author, title, translator.
-- 📊 **Visual Analytics** — Unique authors per decade, country/language distributions.
-- 🌙 **Dark Mode by Default** (with slick UI)
-- 🤖 **Future-Ready** — Built with React (Next.js) + D3 + PapaParse
-- 💬 **Built-in AI Assistant** — Ask questions about the data in natural language
+Live deployments: [Vsesvit](https://vsesvit.vercel.app) ·
+[InterLit](https://interlit.vercel.app) ·
+[Zhanga Adebiet](https://zhangaadebiet.vercel.app)
 
 ---
 
-## 📂 How to Use with Your Own CSV
+## What it does
 
-### 1. Format Your CSV
+- **Timeline browser** — issues grouped by decade, with article-level drill-down.
+- **Faceted search** — free text across authors, titles and translators, plus
+  facets for decade, source language, country and journal. Counts recompute
+  against the current selection. The full query state lives in the URL, so any
+  result set is a link you can cite.
+- **Per-issue pages** — one static HTML document per issue, generated at build
+  time. Real URLs: linkable, reloadable, crawlable, archivable.
+- **Visualisations** — unique authors per decade; country distribution by decade;
+  a world map with a decade filter; top ten source languages; language flow by
+  decade as a Sankey diagram.
+- **Network view** — a force-directed bipartite graph linking decades to the
+  authors published in them, sized by degree.
+- **AI assistant** — thirteen question types answered by direct computation
+  over the data. See the note below.
 
-Your `.csv` file should have the following columns (headers must be exact):
+Visualisation elements link into the faceted search, so a pattern in a chart
+resolves to the records that produced it.
 
-```csv
-journal_id,journal_name,journal_year,journal_number,article_name,author,translator,country,country_latin,language,language_latin
-```
-
-You can leave fields blank if not applicable.
-
-### 2. Add Your File
-
-Put your `.csv` inside the `/public/data/` folder.
-
-Rename it something like `my_journal_data.csv`.
-
-### 3. Update Code References
-
-Search across the codebase and update:
-
-```tsx
-const CSV_URL = '/data/data_2.csv';
-```
-
-To:
-
-```tsx
-const CSV_URL = '/data/my_journal_data.csv';
-```
-
-This is found in:
-- `index.tsx`
-- `search.tsx`
-- `visualizations.tsx`
-- `ai_chat.tsx`
-
-### 4. (Optional) Update Branding
-
-Edit:
-```tsx
-<title>Vsesvit</title>
-```
-To:
-```tsx
-<title>Publicat</title>
-```
-
-Also update logos, meta descriptions, and `about.tsx` for your own flavor.
 
 ---
 
-## 🚢 Deploy on Vercel
+## Quick start
 
-#### Option 1: Via GitHub
-- Push your project to GitHub
-- Go to [vercel.com](https://vercel.com)
-- Connect your repo & deploy
+### 1. Prepare your CSV
 
-#### Option 2: Via CLI
+One row per article per issue. Eleven fields:
 
-```bash
-npm install -g vercel
-vercel
+| Field | Type | Notes |
+|---|---|---|
+| `journal_id` | string | Unique per issue. May contain `/` for combined issues. |
+| `journal_name` | string | |
+| `journal_year` | number | |
+| `journal_number` | string | Not numeric — issues are numbered `5/6` too. |
+| `article_name` | string | |
+| `author` | string | |
+| `translator` | string | Blank where not applicable. |
+| `country` | string | Source country, original script. |
+| `country_latin` | string | Latin-script variant. Falls back to `country`. |
+| `language` | string | Source language, original script. |
+| `language_latin` | string | Latin-script variant. Falls back to `language`. |
+
+Extra columns are ignored without error, so your CSV can carry richer metadata
+than the framework reads.
+
+The `_latin` fields exist for non-Latin-script corpora. If your values are
+already in Latin script, leave those columns out entirely — each falls back to
+its base field.
+
+Place the file at `public/data/your-corpus.csv`.
+
+### 2. Configure
+
+Edit `publicat.config.ts`. This is the only file a new deployment needs to touch:
+
+```ts
+export const config = {
+  csvPath: 'data/your-corpus.csv',   // under /public, or a full https:// URL
+  siteTitle: 'Your Archive',
+  siteDescription: 'Interactive periodical bibliography',
+  nav: [
+    { href: '/', label: 'Main' },
+    { href: '/search', label: 'Search' },
+    { href: '/visualizations', label: 'Visualizations' },
+    { href: '/network', label: 'Network' },
+    { href: '/ai_chat', label: 'Query assistant' },
+    { href: '/about', label: 'About' },
+  ],
+};
 ```
 
-Follow the interactive prompts. 
+If you point `csvPath` at a remote URL, pin it to a commit SHA rather than a
+branch: a mutable pointer means a given deployment changes when the
+file is edited.
 
----
-
-## 🔧 Tech Stack
-- [Next.js](https://nextjs.org/)
-- [React](https://reactjs.org/)
-- [D3.js](https://d3js.org/)
-- [PapaParse](https://www.papaparse.com/) (CSV parsing)
-- [Vercel](https://vercel.com/) (deployment)
-
----
-
-## 💪 Contributing
-Have a cool CSV use case? Want to improve visualizations? PRs are welcome!
-
-1. Fork the repo
-2. Clone it locally
-3. Install dependencies:
+### 3. Run
 
 ```bash
 npm install
+npm run dev      # http://localhost:3000
+npm run build    # generates one static page per issue
 ```
 
-4. Run dev server:
-```bash
-npm run dev
-```
+### 4. Deploy
+
+**Vercel** — import the repository, accept the defaults. The free tier covers a
+typical journal archive.
+
+**Anywhere else** — set `output: 'export'` in `next.config.js` and `npm run
+build` writes a static site to `out/`, deployable to GitHub Pages, Netlify, a
+departmental server, or anything that serves files.
 
 ---
 
-## 📞 Contact
+## Project structure
 
-Created by [@KGeorgii](https://github.com/KGeorgii). Feel free to open issues or reach out for collaboration ideas!
+```
+publicat.config.ts      the only file a deployment needs to edit
+types/journal.ts        the eleven-field schema and row normalisation
+lib/
+  loadCsv.ts            browser-side parsing; URL-safe id encoding
+  loadCsvServer.ts      build-time loading, indexed by issue
+  useJournalData.tsx    one fetch per session, on first use
+  queries.ts            the query registry — add question types here
+  countryNames.ts       country resolution and its documented decisions
+components/Nav.tsx      shared navigation, rendered from config
+pages/
+  index.tsx             timeline browser
+  search.tsx            faceted search
+  visualizations.tsx    five D3 charts
+  network.tsx           Cosmograph network view
+  ai_chat.tsx           query assistant
+  journals/[journal_id].tsx   statically generated issue pages
+public/data/            your CSV, and world.geojson for the map
+```
+
+## Extending it
+
+**Add a facet** — one entry in the `FACETS` array in `pages/search.tsx`.
+
+**Add a question type** — one entry in `QUERY_SPECS` in `lib/queries.ts`, with its recognised phrasings and a handler. The interface picks it up automatically, including the capability list.
+
+**Adjust country mapping** — `lib/countryNames.ts`. Each historical mapping is recorded with its reasoning.
+
 
 ---
 
-## ✈️ License
+## Archiving
 
-MIT License.
+A deployment can be captured as a WACZ file with
+[Browsertrix](https://browsertrix.com), replaying with search and visualisations
+intact and no live server. Seed at the site root, scope Same Domain. Because
+issue pages are now linked static documents, no Autoclick selector is needed.
 
-<br />
-<br />
-<a href="https://vercel.com/oss">
-  <img alt="Vercel OSS Program" src="https://vercel.com/oss/program-badge.svg" />
-</a>
+---
 
-<br />
-<br />
-<a href="https://vercel.com/oss">
-  <img alt="Vercel OSS Program" src="https://vercel.com/oss/program-badge-2026.svg" />
-</a>
+## Licence
+
+MIT.
